@@ -10,6 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "meili:setup": "tsx --env-file=.env.local scripts/meili-setup.ts",
+    "meili:reindex": "tsx --env-file=.env.local scripts/reindex.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -49,6 +49,15 @@ export default function RootLayout({
             /Images
           </Link>
         </nav>
+        <header className="mx-auto w-full max-w-3xl px-6 pb-8">
+          <Link
+            href="/"
+            className="block text-5xl font-semibold uppercase tracking-tight text-zinc-900 hover:text-zinc-700 dark:text-zinc-100 dark:hover:text-zinc-300"
+            aria-label="Searching for meaning — home"
+          >
+            Searching for meaning
+          </Link>
+        </header>
         {children}
       </body>
     </html>
