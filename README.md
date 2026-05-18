@@ -103,14 +103,49 @@ Swapping engines = write one new adapter that implements `ImageSearch`.
 
 ### Indexing
 
-Today: **manual** via `pnpm meili:reindex` after seeding. M4 replaces this with Sequin auto-sync.
+After Sequin is wired up (see next section), inserts and deletes in Postgres show up in Meilisearch within ~1 second automatically. The reindex script remains as a manual rebuild/disaster-recovery tool.
 
 | Trigger                            | Run                                                           |
 | ---------------------------------- | ------------------------------------------------------------- |
 | Edited `scripts/meili-setup.ts`    | `pnpm meili:setup`                                            |
-| Seeded new rows in Postgres        | `pnpm meili:reindex`                                          |
 | Changed `images_search` view shape | `pnpm db:migrate` → `pnpm meili:setup` → `pnpm meili:reindex` |
 | Wiped Meili volume                 | `pnpm meili:setup` → `pnpm meili:reindex`                     |
+| Sequin sink down for a while       | `pnpm meili:reindex` to catch up                              |
+
+## Sequin CDC setup
+
+Sequin watches Postgres' WAL and POSTs CDC events to `/api/sequin/sink`. The handler queries `images_search` for the full denormalized doc and upserts/deletes it in Meilisearch.
+
+```
+Postgres WAL ─► Sequin ─► POST /api/sequin/sink ─► lookup images_search ─► Meilisearch
+```
+
+**One-time setup (Sequin UI at <http://localhost:7376>):**
+
+1. **Open Sequin UI** and create the first admin user when prompted.
+2. **Add a database**:
+   - Host: `postgres` _(Docker service name — Sequin reaches it on the compose network)_
+   - Port: `5432`
+   - Database: `searching_for_meaning`
+   - User / Password: `postgres` / `postgres`
+   - Use SSL: off
+   - Click _Test connection_ → _Create_.
+   - When prompted, let Sequin create the publication and replication slot.
+3. **Add an HTTP push sink**:
+   - Source: the `images` table on the database above
+   - Destination URL: `http://host.docker.internal:3000/api/sequin/sink`
+     _(macOS / Windows Docker. On Linux, find your host IP or run Next.js inside the compose network.)_
+   - Header: `Authorization: Bearer dev-sequin-secret-change-me`
+     _(must match `SEQUIN_WEBHOOK_SECRET` in `.env.local`)_
+   - Batch size: 10–100 is fine for local
+   - Enable _Backfill on creation_ to push the existing rows immediately
+4. **Verify**: insert a row via `/admin/seed` → check `/admin/images` → search for any caption term on `/`. The row should be searchable within ~1s with no manual reindex.
+
+**Notes / gotchas:**
+
+- The sink watches the `images` table — not the `images_search` view (Postgres logical replication doesn't work on views). The webhook re-joins photographer + agency at lookup time.
+- A photographer or agency rename does **not** propagate to existing image docs until those images are themselves updated. Acceptable for now; run `pnpm meili:reindex` for a full refresh if it matters.
+- Sequin secret currently lives in `.env.local`. Rotate with `openssl rand -hex 32` before any non-local deploy.
 
 ## Services
 
