@@ -1,0 +1,107 @@
+# Local dev infrastructure for the image-archive search project.
+#
+#   postgres       — application database (system of record)
+#   meilisearch    — search index
+#   sequin         — Postgres CDC → Meilisearch sink
+#   sequin-pg      — Sequin's internal state DB
+#   redis          — Sequin's message queue
+#
+# Bring everything up:   docker compose up -d
+# Stop:                  docker compose down
+# Reset (wipe data):     docker compose down -v
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: sfm-postgres
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: searching_for_meaning
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    container_name: sfm-meilisearch
+    environment:
+      MEILI_MASTER_KEY: dev-master-key-change-me
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  sequin-pg:
+    image: postgres:16
+    container_name: sfm-sequin-pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sequin
+    volumes:
+      - sequin-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: sfm-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  sequin:
+    image: sequin/sequin:latest
+    container_name: sfm-sequin
+    depends_on:
+      sequin-pg:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_HOSTNAME: sequin-pg
+      PG_DATABASE: sequin
+      PG_PORT: "5432"
+      PG_USERNAME: postgres
+      PG_PASSWORD: postgres
+      PG_POOL_SIZE: "20"
+      REDIS_URL: redis://redis:6379
+      # Local dev only — rotate before any non-local deployment.
+      SECRET_KEY_BASE: wjh+sZyVxLCw9CcgrcZmt0fjLkUkLAY9wpypL2W/uowNkx8YQz8N6WyOFNkqj3lN
+      VAULT_KEY: 2Sig69bIpuSm2kRhI28ZgDmK3rJGHGzj+8wPS9q73Wc=
+    ports:
+      - "7376:7376"
+
+volumes:
+  postgres-data:
+  meilisearch-data:
+  sequin-pg-data:
