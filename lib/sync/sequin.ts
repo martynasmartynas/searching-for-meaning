@@ -72,8 +72,11 @@ export async function processSequinEvents(
 ): Promise<ProcessResult> {
   const events = Array.isArray(payload) ? payload : payload.data ?? []
 
-  const toUpsert: string[] = []
-  const toDelete: string[] = []
+  // Collapse events by bildnummer, keeping the last action seen. Within a
+  // single batch Sequin can deliver e.g. [delete X, insert X] where the row
+  // was deleted and re-created — the *last* action is what represents reality.
+  // Iterating in arrival order ensures Map preserves the final state per id.
+  const finalAction = new Map<string, 'upsert' | 'delete'>()
   let skipped = 0
 
   for (const ev of events) {
@@ -82,8 +85,14 @@ export async function processSequinEvents(
       skipped++
       continue
     }
-    if (ev.action === 'delete') toDelete.push(bildnummer)
-    else                        toUpsert.push(bildnummer)
+    finalAction.set(bildnummer, ev.action === 'delete' ? 'delete' : 'upsert')
+  }
+
+  const toUpsert: string[] = []
+  const toDelete: string[] = []
+  for (const [id, action] of finalAction) {
+    if (action === 'delete') toDelete.push(id)
+    else                     toUpsert.push(id)
   }
 
   const docs = await fetchFullDocs(toUpsert)

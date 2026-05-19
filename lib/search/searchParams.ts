@@ -37,8 +37,20 @@ function pickEnum<T extends string>(
 function pickInt(v: string | string[] | undefined): number | undefined {
   const raw = pickFirst(v)
   if (!raw) return undefined
+  // Strict integer: reject "5e3", "5.7", " 5 ", "0x1f", and anything non-digit.
+  if (!/^-?\d+$/.test(raw)) return undefined
   const n = Number(raw)
-  return Number.isFinite(n) ? n : undefined
+  return Number.isInteger(n) ? n : undefined
+}
+
+const MIN_YEAR = 1800
+const MAX_YEAR = 2100
+
+function pickYear(v: string | string[] | undefined): number | undefined {
+  const n = pickInt(v)
+  if (n === undefined) return undefined
+  if (n < MIN_YEAR || n > MAX_YEAR) return undefined
+  return n
 }
 
 function buildDateFilter(from?: number, to?: number): DateFilter | undefined {
@@ -74,8 +86,8 @@ export function parseSearchParams(sp: RawSearchParams): ParsedSearch {
   const orientation = pickEnum<Orientation>(sp.orient, ORIENTATIONS)
   const sort = pickEnum<SortMode>(sp.sort, SORTS) ?? 'relevance'
 
-  const fromYear = pickInt(sp.from)
-  const toYear = pickInt(sp.to)
+  const fromYear = pickYear(sp.from)
+  const toYear = pickYear(sp.to)
 
   const requestedPerPage = pickInt(sp.size) ?? PER_PAGE_DEFAULT
   const perPage = Math.max(1, Math.min(requestedPerPage, PER_PAGE_MAX))

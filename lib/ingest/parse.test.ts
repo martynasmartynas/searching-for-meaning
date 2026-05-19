@@ -203,4 +203,16 @@ describe('parseGermanDate', () => {
     expect(() => parseGermanDate('nope')).toThrow(/Bad German date/)
     expect(() => parseGermanDate('')).toThrow(/Bad German date/)
   })
+
+  it('throws on impossible dates (no silent rollover)', () => {
+    expect(() => parseGermanDate('31.02.2020')).toThrow(/Bad German date/)
+    expect(() => parseGermanDate('45.13.2020')).toThrow(/Bad German date/)
+    expect(() => parseGermanDate('00.01.2020')).toThrow(/Bad German date/)
+    expect(() => parseGermanDate('29.02.2021')).toThrow(/Bad German date/) // not a leap year
+  })
+
+  it('accepts leap-year Feb 29', () => {
+    const d = parseGermanDate('29.02.2020')
+    expect(d.toISOString()).toBe('2020-02-29T00:00:00.000Z')
+  })
 })

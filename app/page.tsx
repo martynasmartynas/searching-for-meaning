@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { imageSearch } from '@/lib/search'
 import {
+  MAX_RESULTS,
   canonicalUrlIfDifferent,
   parseSearchParams,
   type RawSearchParams,
@@ -30,6 +31,13 @@ export default async function HomePage({ searchParams }: PageProps) {
 
   const hasInput = !!raw.q || !!request.filters
   const results = await imageSearch.search(request)
+
+  // Cap pagination at MAX_RESULTS so we never link to pages we'd silently
+  // clamp on click. Also show the cap notice whenever the total exceeds the
+  // cap — not only when the URL itself overshot.
+  const maxPages = Math.max(1, Math.floor(MAX_RESULTS / results.perPage))
+  const cappedTotalPages = Math.min(results.totalPages, maxPages)
+  const showCapNotice = pageWasCapped || results.total > MAX_RESULTS
 
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-16">
@@ -70,9 +78,9 @@ export default async function HomePage({ searchParams }: PageProps) {
             </p>
           )}
 
-          {pageWasCapped && (
+          {showCapNotice && (
             <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
-              Showing the first 1000 results. Refine your search to see more.
+              Showing the first {MAX_RESULTS.toLocaleString()} results. Refine your search to see more.
             </p>
           )}
 
@@ -92,7 +100,7 @@ export default async function HomePage({ searchParams }: PageProps) {
 
           <Pagination
             page={results.page}
-            totalPages={results.totalPages}
+            totalPages={cappedTotalPages}
             sp={sp}
           />
         </section>

@@ -114,8 +114,18 @@ export function normalizeSuchtext(raw: string): string {
 export function parseGermanDate(input: string): Date {
   const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(input.trim())
   if (!m) throw new Error(`Bad German date: ${input}`)
-  const [, d, mo, y] = m
-  const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)))
-  if (Number.isNaN(date.getTime())) throw new Error(`Bad German date: ${input}`)
+  const day = Number(m[1])
+  const month = Number(m[2])
+  const year = Number(m[3])
+  const date = new Date(Date.UTC(year, month - 1, day))
+  // JS silently rolls over impossible dates (e.g. 31.02.2020 → 2020-03-02).
+  // Verify each component round-trips.
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new Error(`Bad German date: ${input}`)
+  }
   return date
 }
