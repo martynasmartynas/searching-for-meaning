@@ -20,25 +20,35 @@ An image-archive search app — Next.js monolith over Postgres + Meilisearch, wi
 
 ## Prerequisites
 
-- Node.js 20+
-- pnpm 11+ (`brew install pnpm`)
-- Docker Desktop
+- **Node.js 20+** (`node --version` to check; install via [nodejs.org](https://nodejs.org) or `brew install node`)
+- **pnpm 11+** (`brew install pnpm`, or [pnpm.io/installation](https://pnpm.io/installation))
+- **Docker Desktop** — running before you start (`docker info` should succeed)
+- ~3 GB free disk for the Docker images on first pull
 
-## Local setup
+## Run locally
 
 ```bash
-pnpm install                # install JS dependencies
-pnpm dup                    # start Postgres, Meilisearch, Sequin, Redis (foreground)
-pnpm db:migrate             # tables + view + agencies + Sequin pub/slot/replica identity
-pnpm db:seed                # 15-row starter dataset
-pnpm meili:setup            # create + configure the search index
-pnpm meili:reindex          # initial backfill — Sequin handles ongoing changes
-pnpm dev                    # start Next.js
+pnpm install
+cp .env.example .env.local
 ```
 
-App: <http://localhost:3000>
+Terminal 1:
 
-Sequin self-configures from `sequin.yml` on every boot — no UI walkthrough.
+```bash
+pnpm dup
+```
+
+Terminal 2:
+
+```bash
+pnpm db:migrate
+pnpm db:seed
+pnpm meili:setup
+pnpm meili:reindex
+pnpm dev
+```
+
+Open <http://localhost:3000>.
 
 ## Pages
 
@@ -235,24 +245,4 @@ pnpm-workspace.yaml             # pnpm 11 native-build approvals
 | `docker compose logs -f sequin`  | Tail Sequin logs                         |
 | `curl localhost:3000/api/health` | Verify everything is wired up            |
 
-## Wipe and reseed
-
-```bash
-docker exec sfm-postgres psql -U postgres -d searching_for_meaning \
-  -c "TRUNCATE TABLE images, photographers, agencies RESTART IDENTITY CASCADE;"
-pnpm db:seed
-pnpm meili:reindex
-```
-
-To wipe **everything** (Postgres, Meili, Sequin's own state):
-
-```bash
-docker compose down -v
-pnpm dup
-pnpm db:migrate
-pnpm db:seed
-pnpm meili:setup
-pnpm meili:reindex
-```
-
-Sequin re-bootstraps from `sequin.yml` automatically on `dup`.
+<!-- Wipe & reseed and full-nuke procedures live in the Setup & run section. -->
