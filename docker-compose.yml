@@ -60,6 +60,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: sequin
+    ports:
+      - "5433:5432"
     volumes:
       - sequin-pg-data:/var/lib/postgresql/data
     healthcheck:
@@ -98,8 +100,11 @@ services:
       # Local dev only — rotate before any non-local deployment.
       SECRET_KEY_BASE: wjh+sZyVxLCw9CcgrcZmt0fjLkUkLAY9wpypL2W/uowNkx8YQz8N6WyOFNkqj3lN
       VAULT_KEY: 2Sig69bIpuSm2kRhI28ZgDmK3rJGHGzj+8wPS9q73Wc=
+      CONFIG_FILE_PATH: /config/sequin.yml
     ports:
       - "7376:7376"
+    volumes:
+      - ./sequin.yml:/config/sequin.yml:ro
 
 volumes:
   postgres-data:

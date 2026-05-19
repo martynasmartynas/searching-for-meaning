@@ -12,6 +12,12 @@
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
     "meili:setup": "tsx --env-file=.env.local scripts/meili-setup.ts",
     "meili:reindex": "tsx --env-file=.env.local scripts/reindex.ts",
+    "dup": "docker compose up",
+    "ddown": "docker compose down",
+    "dps": "docker compose ps",
+    "dlogs": "docker compose logs -f",
+    "dlogs-sequin": "docker compose logs -f sequin",
+    "psql": "docker exec -it sfm-postgres psql -U postgres -d searching_for_meaning",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -28,15 +28,17 @@ An image-archive search app — Next.js monolith over Postgres + Meilisearch, wi
 
 ```bash
 pnpm install                # install JS dependencies
-docker compose up -d        # start Postgres, Meilisearch, Sequin, Redis
-pnpm db:migrate             # apply schema migrations
-pnpm db:seed                # insert the 15-row starter dataset
+pnpm dup                    # start Postgres, Meilisearch, Sequin, Redis (foreground)
+pnpm db:migrate             # tables + view + agencies + Sequin pub/slot/replica identity
+pnpm db:seed                # 15-row starter dataset
 pnpm meili:setup            # create + configure the search index
-pnpm meili:reindex          # push Postgres rows → Meilisearch
+pnpm meili:reindex          # initial backfill — Sequin handles ongoing changes
 pnpm dev                    # start Next.js
 ```
 
 App: <http://localhost:3000>
+
+Sequin self-configures from `sequin.yml` on every boot — no UI walkthrough.
 
 ## Pages
 
@@ -120,32 +122,30 @@ Sequin watches Postgres' WAL and POSTs CDC events to `/api/sequin/sink`. The han
 Postgres WAL ─► Sequin ─► POST /api/sequin/sink ─► lookup images_search ─► Meilisearch
 ```
 
-**One-time setup (Sequin UI at <http://localhost:7376>):**
+**Fully automated.** `sequin.yml` at the repo root is mounted into the Sequin container and read on every boot. It declares:
 
-1. **Open Sequin UI** and create the first admin user when prompted.
-2. **Add a database**:
-   - Host: `postgres` _(Docker service name — Sequin reaches it on the compose network)_
-   - Port: `5432`
-   - Database: `searching_for_meaning`
-   - User / Password: `postgres` / `postgres`
-   - Use SSL: off
-   - Click _Test connection_ → _Create_.
-   - When prompted, let Sequin create the publication and replication slot.
-3. **Add an HTTP push sink**:
-   - Source: the `images` table on the database above
-   - Destination URL: `http://host.docker.internal:3000/api/sequin/sink`
-     _(macOS / Windows Docker. On Linux, find your host IP or run Next.js inside the compose network.)_
-   - Header: `Authorization: Bearer dev-sequin-secret-change-me`
-     _(must match `SEQUIN_WEBHOOK_SECRET` in `.env.local`)_
-   - Batch size: 10–100 is fine for local
-   - Enable _Backfill on creation_ to push the existing rows immediately
-4. **Verify**: insert a row via `/admin/seed` → check `/admin/images` → search for any caption term on `/`. The row should be searchable within ~1s with no manual reindex.
+- the admin account + user
+- the Postgres database connection (using `sequin_pub` + `sequin_slot` that migration `0003` creates)
+- the HTTP endpoint pointing at `http://host.docker.internal:3000/api/sequin/sink`
+- the webhook sink streaming `public.images` events to that endpoint
+
+No UI clicks needed for dev. After a `docker compose down -v && pnpm dup`, Sequin comes back configured.
+
+To verify: insert via `/admin/seed` → search for any caption term on `/` — the row should appear within ~1 second.
+
+**To inspect or tweak** in the Sequin UI at <http://localhost:7376>, sign in with:
+
+```
+email:    admin@local.dev
+password: sequin-admin-change-me
+```
 
 **Notes / gotchas:**
 
 - The sink watches the `images` table — not the `images_search` view (Postgres logical replication doesn't work on views). The webhook re-joins photographer + agency at lookup time.
 - A photographer or agency rename does **not** propagate to existing image docs until those images are themselves updated. Acceptable for now; run `pnpm meili:reindex` for a full refresh if it matters.
-- Sequin secret currently lives in `.env.local`. Rotate with `openssl rand -hex 32` before any non-local deploy.
+- Sequin secret currently lives in `.env.local` and is duplicated in `sequin.yml`. Rotate both with `openssl rand -hex 32` before any non-local deploy.
+- Sequin's destination type in YAML is `"webhook"`, even though the internal table is `http_push_consumers`.
 
 ## Services
 
@@ -210,6 +210,7 @@ drizzle/
   meta/_journal.json
 drizzle.config.ts
 docker-compose.yml              # full local infra
+sequin.yml                      # declarative Sequin config (mounted into the container)
 pnpm-workspace.yaml             # pnpm 11 native-build approvals
 ```
 
@@ -243,13 +244,15 @@ pnpm db:seed
 pnpm meili:reindex
 ```
 
-To wipe Meilisearch too:
+To wipe **everything** (Postgres, Meili, Sequin's own state):
 
 ```bash
 docker compose down -v
-docker compose up -d
+pnpm dup
 pnpm db:migrate
 pnpm db:seed
 pnpm meili:setup
 pnpm meili:reindex
 ```
+
+Sequin re-bootstraps from `sequin.yml` automatically on `dup`.

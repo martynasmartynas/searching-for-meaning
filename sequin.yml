@@ -1,0 +1,51 @@
+# Sequin dev config — mounted into the Sequin container at /config/sequin.yml.
+# Sequin reads this on boot and creates the account, database connection,
+# HTTP endpoint, and sink consumer declaratively.
+#
+# Local dev only — credentials are intentionally simple. Rotate before any
+# non-local deploy.
+
+account:
+  name: "dev"
+
+users:
+  - email: "admin@local.dev"
+    password: "sequin-admin-change-me"
+
+databases:
+  - name: "app-db"
+    hostname: "postgres"
+    port: 5432
+    database: "searching_for_meaning"
+    username: "postgres"
+    password: "postgres"
+    pool_size: 3
+    slot:
+      name: "sequin_slot"
+      create_if_not_exists: false
+    publication:
+      name: "sequin_pub"
+      create_if_not_exists: false
+    await_database:
+      timeout_ms: 60000
+      interval_ms: 2000
+
+http_endpoints:
+  - name: "next-sink"
+    url: "http://host.docker.internal:3000/api/sequin/sink"
+    headers:
+      Authorization: "Bearer dev-sequin-secret-change-me"
+
+sinks:
+  - name: "images-to-meili"
+    database: "app-db"
+    table: "public.images"
+    batch_size: 25
+    status: "active"
+    actions:
+      - insert
+      - update
+      - delete
+    destination:
+      type: "webhook"
+      http_endpoint: "next-sink"
