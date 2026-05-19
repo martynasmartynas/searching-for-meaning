@@ -58,10 +58,11 @@ async function main() {
       disableOnAttributes: ['bildnummer'],
     },
 
-    // Hint Meili to apply German-aware tokenization on the main caption field.
-    localizedAttributes: [
-      { locales: ['deu', 'eng'], attributePatterns: ['suchtext'] },
-    ],
+    // We previously forced German locale here, but Charabia's `deu` mode
+    // over-segments Latin words (e.g. "Berlin" → "Be", "rl", "in") which
+    // makes highlights and matches look broken. Auto-detect handles our
+    // mixed German+English captions fine.
+    localizedAttributes: null,
 
     // Keep abbreviations and multi-word names from being split by the tokenizer.
     dictionary: ['F.C.', 'St.', 'United Archives'],

@@ -1,81 +1,102 @@
-import { Search } from 'lucide-react'
+import { redirect } from 'next/navigation'
 import { imageSearch } from '@/lib/search'
+import {
+  canonicalUrlIfDifferent,
+  parseSearchParams,
+  type RawSearchParams,
+} from '@/lib/search/searchParams'
+
+import { ActiveFilters } from '@/components/search/ActiveFilters'
+import { DateRange } from '@/components/search/DateRange'
+import { FacetGroup } from '@/components/search/FacetGroup'
+import { Pagination } from '@/components/search/Pagination'
+import { ResultCard } from '@/components/search/ResultCard'
+import { SearchForm } from '@/components/search/SearchForm'
+import { SortPills } from '@/components/search/SortPills'
 
 export const dynamic = 'force-dynamic'
 
-const dateFormatter = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' })
+type PageProps = { searchParams: Promise<RawSearchParams> }
 
-type RawSearchParams = Promise<{ q?: string }>
+export default async function HomePage({ searchParams }: PageProps) {
+  const sp = await searchParams
 
-export default async function HomePage({ searchParams }: { searchParams: RawSearchParams }) {
-  const { q = '' } = await searchParams
-  const results = q ? await imageSearch.search({ query: q, perPage: 20 }) : null
+  // Redirect to a clean URL if the incoming one has unknown keys, invalid
+  // enum values, or redundant defaults.
+  const canonical = canonicalUrlIfDifferent(sp)
+  if (canonical) redirect(canonical)
+
+  const { request, pageWasCapped, raw } = parseSearchParams(sp)
+
+  const hasInput = !!raw.q || !!request.filters
+  const results = await imageSearch.search(request)
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 pb-16">
+    <main className="mx-auto w-full max-w-6xl px-6 pb-16">
       <h1 className="text-2xl font-semibold tracking-tight">Search</h1>
 
-      <form action="/" method="get" className="mt-6 flex gap-2">
-        <label className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
-          <input
-            name="q"
-            type="search"
-            defaultValue={q}
-            placeholder="Search images…"
-            autoFocus
-            className="w-full rounded-md border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
+      <SearchForm q={raw.q} sp={sp} />
+
+      <div className="mt-6 grid gap-6 md:grid-cols-[220px_1fr]">
+        <aside className="space-y-6">
+          <SortPills current={raw.sort} sp={sp} />
+          <DateRange fromYear={raw.fromYear} toYear={raw.toYear} sp={sp} />
+
+          <FacetGroup
+            label="Photographer"
+            paramKey="photographer"
+            buckets={results.facets?.fotografen}
+            selected={raw.photographer}
+            sp={sp}
           />
-        </label>
-        <button
-          type="submit"
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-        >
-          Go
-        </button>
-      </form>
+          <FacetGroup
+            label="Orientation"
+            paramKey="orient"
+            buckets={results.facets?.orientation}
+            selected={raw.orientation ? [raw.orientation] : undefined}
+            single
+            sp={sp}
+          />
 
-      {results && (
-        <p className="mt-4 text-sm text-zinc-500">
-          {results.total.toLocaleString()} result{results.total === 1 ? '' : 's'} · {results.tookMs}ms
-        </p>
-      )}
+          <ActiveFilters sp={sp} raw={raw} />
+        </aside>
 
-      {results && results.hits.length === 0 && (
-        <p className="mt-12 text-center text-sm text-zinc-500">No matches.</p>
-      )}
+        <section>
+          {hasInput && (
+            <p className="text-sm text-zinc-500">
+              {results.total.toLocaleString()} result{results.total === 1 ? '' : 's'}
+              {' · '}
+              {results.tookMs}ms
+            </p>
+          )}
 
-      <ul className="mt-6 space-y-3">
-        {results?.hits.map((hit) => (
-          <li
-            key={hit.bildnummer}
-            className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
-          >
-            <div className="flex items-baseline justify-between gap-3">
-              <div className="font-mono text-xs text-zinc-500">{hit.bildnummer}</div>
-              <div className="text-xs text-zinc-500">
-                {dateFormatter.format(hit.datum)} · {hit.width}×{hit.height}
-              </div>
-            </div>
-            <div
-              className="mt-2 text-sm"
-              dangerouslySetInnerHTML={{
-                __html: hit.highlight?.suchtext ?? hit.suchtext,
-              }}
-            />
-            <div className="mt-2 text-xs text-zinc-500">
-              {hit.agency ? `${hit.agency} / ` : ''}
-              {hit.fotografen}
-              {hit.allowedTerritories?.length ? (
-                <span className="ml-2">· only: {hit.allowedTerritories.join(', ')}</span>
-              ) : null}
-              {hit.deniedTerritories?.length ? (
-                <span className="ml-2 text-red-600">· not: {hit.deniedTerritories.join(', ')}</span>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
+          {pageWasCapped && (
+            <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+              Showing the first 1000 results. Refine your search to see more.
+            </p>
+          )}
+
+          {results.hits.length === 0 ? (
+            <p className="mt-16 text-center text-sm text-zinc-500">
+              {hasInput
+                ? 'No matches. Try removing a filter.'
+                : 'Start typing or pick a filter.'}
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {results.hits.map((hit) => (
+                <ResultCard key={hit.bildnummer} hit={hit} />
+              ))}
+            </ul>
+          )}
+
+          <Pagination
+            page={results.page}
+            totalPages={results.totalPages}
+            sp={sp}
+          />
+        </section>
+      </div>
     </main>
   )
 }
