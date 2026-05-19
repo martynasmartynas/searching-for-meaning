@@ -29,6 +29,13 @@
       "when": 1779138105000,
       "tag": "0003_sequin_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779138106000,
+      "tag": "0004_drop_updated_ts_from_view",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,6 @@
 export type Orientation = 'landscape' | 'portrait' | 'square'
 
 export type DateFilter =
-  | { kind: 'on';    date: Date }
   | { kind: 'year';  year: number }
   | { kind: 'range'; from?: Date; to?: Date }
 
@@ -13,8 +12,6 @@ export type ImageFilters = {
   agency?: string[]
   orientation?: Orientation
   date?: DateFilter
-  /** ISO 3166-1 alpha-2 code. Filters to images publishable in this country. */
-  publishableIn?: string
 }
 
 export type SortMode = 'relevance' | 'newest' | 'oldest'
@@ -75,7 +72,6 @@ export type ImageDoc = {
   orientation: Orientation
   allowed_territories: string[] | null
   denied_territories: string[] | null
-  updated_ts: number
 }
 
 export interface ImageSearch {

@@ -63,27 +63,35 @@ async function upsertPhotographers(
 export async function ingestRawImages(raws: FakeRawImage[]): Promise<number> {
   if (raws.length === 0) return 0
 
-  const parsed = raws.map((r) => ({
-    raw: r.fotografen,
-    ...parsePhotographer(r.fotografen),
-  }))
+  // Parse each unique raw photographer string exactly once.
+  const parsedByRaw = new Map<string, ReturnType<typeof parsePhotographer>>()
+  for (const r of raws) {
+    if (!parsedByRaw.has(r.fotografen)) {
+      parsedByRaw.set(r.fotografen, parsePhotographer(r.fotografen))
+    }
+  }
 
   const agencyNames = [
-    ...new Set(parsed.map((p) => p.agency).filter((n): n is string => Boolean(n))),
+    ...new Set(
+      [...parsedByRaw.values()]
+        .map((p) => p.agency)
+        .filter((n): n is string => Boolean(n)),
+    ),
   ]
   const agencyId = await upsertAgencies(agencyNames)
 
   const photographerId = await upsertPhotographers(
-    parsed.map((p) => ({
+    [...parsedByRaw.values()].map((p) => ({
       agencyId: p.agency ? agencyId.get(p.agency)! : null,
       name: p.photographer,
     })),
   )
 
-  const lookupId = (raw: string) => {
-    const p = parsePhotographer(raw)
+  // raw photographer string → photographer row id, no re-parsing.
+  const idByRaw = new Map<string, number>()
+  for (const [raw, p] of parsedByRaw) {
     const aid = p.agency ? agencyId.get(p.agency)! : null
-    return photographerId.get(key(aid, p.photographer))!
+    idByRaw.set(raw, photographerId.get(key(aid, p.photographer))!)
   }
 
   const seen = new Set<string>()
@@ -93,7 +101,7 @@ export async function ingestRawImages(raws: FakeRawImage[]): Promise<number> {
       return {
         bildnummer: r.bildnummer,
         suchtext: normalizeSuchtext(r.suchtext),
-        photographerId: lookupId(r.fotografen),
+        photographerId: idByRaw.get(r.fotografen)!,
         datum: parseGermanDate(r.datum),
         width: Number(r.breite),
         height: Number(r.hoehe),

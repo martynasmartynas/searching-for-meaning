@@ -11,6 +11,7 @@ import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db/db'
 import { imageSearch } from '@/lib/search'
 import type { ImageDoc } from '@/lib/search/types'
+import { normalizeViewRow, type ViewRow } from '@/lib/search/viewRow'
 
 export type SequinAction = 'insert' | 'update' | 'delete' | 'read'
 
@@ -28,19 +29,6 @@ export type SequinEvent = {
 export type SequinPayload = {
   data?: SequinEvent[]
 } | SequinEvent[]
-
-type ViewRow = Omit<ImageDoc, 'datum_ts' | 'updated_ts'> & {
-  datum_ts: string | number
-  updated_ts: string | number
-}
-
-function normalizeViewRow(row: ViewRow): ImageDoc {
-  return {
-    ...row,
-    datum_ts: Number(row.datum_ts),
-    updated_ts: Number(row.updated_ts),
-  }
-}
 
 async function fetchFullDocs(bildnummern: string[]): Promise<ImageDoc[]> {
   if (bildnummern.length === 0) return []

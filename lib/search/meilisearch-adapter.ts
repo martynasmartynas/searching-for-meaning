@@ -85,24 +85,11 @@ export class MeilisearchImageSearch implements ImageSearch {
       const dateClause = this.buildDateFilter(f.date)
       if (dateClause) clauses.push(dateClause)
     }
-    if (f.publishableIn) {
-      const t = q(f.publishableIn)
-      // Allow if (a) no allow list OR includes the country, AND (b) no deny list OR doesn't include the country.
-      clauses.push(
-        `(allowed_territories IS EMPTY OR allowed_territories = ${t}) AND ` +
-          `(denied_territories IS EMPTY OR NOT denied_territories = ${t})`,
-      )
-    }
 
     return clauses.length ? clauses : undefined
   }
 
   private buildDateFilter(d: DateFilter): string | null {
-    if (d.kind === 'on') {
-      const start = new Date(d.date); start.setUTCHours(0, 0, 0, 0)
-      const end   = new Date(d.date); end.setUTCHours(23, 59, 59, 999)
-      return `datum_ts >= ${sec(start)} AND datum_ts <= ${sec(end)}`
-    }
     if (d.kind === 'year') {
       const start = sec(new Date(Date.UTC(d.year, 0, 1)))
       const end   = sec(new Date(Date.UTC(d.year, 11, 31, 23, 59, 59)))
